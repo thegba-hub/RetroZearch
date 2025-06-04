@@ -1,3 +1,3 @@
 # RetroZearch
 
-RetroZearch is a bioinformatic tool designed for mass identification of retrozymes in plant genomes.
+RetroZearch is a high-throughput bioinformatics tool for the large-scale discovery of retrozymes across plant genomes — accelerating the exploration of these unique circular RNAs in evolutionary and functional genomics.

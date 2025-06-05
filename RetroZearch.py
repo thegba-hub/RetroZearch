@@ -7,10 +7,10 @@ import zipfile
 ########### VARIABLES ##############
 
 # Path where genomes have been downloaded
-source_path = os.getcwd()
+source_path = 'your_path'
 
 # Path where the genomes and files will be stored after extraction
-genomes_path = os.getcwd()
+genomes_path = 'your_path'
 
 # Max retrozyme length
 rtzm_length = 2000

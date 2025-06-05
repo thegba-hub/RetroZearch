@@ -1,3 +1,5 @@
+# PACKAGES #
+
 import os
 import gzip
 import subprocess
@@ -7,20 +9,19 @@ import zipfile
 ########### VARIABLES ##############
 
 # Path where genomes have been downloaded
-source_path = os.getcwd()
-
+source_path = 'your_path'
 # Path where the genomes and files will be stored after extraction
-genomes_path = os.getcwd()
-
-# Max retrozyme length
-rtzm_length = 2000
-
-# Path to the ribozyme model 
-ribozyme_model = 'your_path' 
+genomes_path = 'your_path'
 # Path where retrozymes will be stored
 retrozymes_path = 'your_path'
 # Path where retrozymes sequences will be stored
 retrozymes_seqs_path = 'your_path'
+
+# Path to the ribozyme model 
+ribozyme_model = 'your_path' 
+
+# Max retrozyme length
+rtzm_length = 2000
 
 ####################################
 
@@ -28,27 +29,27 @@ retrozymes_seqs_path = 'your_path'
 #### DECOMPRESSION AND CMSEARCH ####
 
 # FUNCTION: Decompress ZIP files and handle errors
-def decompress_zip(work_file_zip, carpeta_destino):
+def decompress_zip(zipfile, destination_folder):
     try:
         # Verify if the ZIP file exists
-        if not os.path.exists(work_file_zip):
+        if not os.path.exists(zipfile):
             return None
         # Verify if the destination folder exists, if not, create it
-        if not os.path.exists(carpeta_destino):
-            os.makedirs(carpeta_destino)
+        if not os.path.exists(destination_folder):
+            os.makedirs(destination_folder)
         
         # Decompress the ZIP file
-        with zipfile.ZipFile(work_file_zip, 'r') as zip_ref:
-            zip_ref.extractall(carpeta_destino)
+        with zipfile.ZipFile(zipfile, 'r') as zip_ref:
+            zip_ref.extractall(destination_folder)
     except zipfile.BadZipFile:
-        print("El work_file " + work_file_zip + " no es un work_file ZIP valido.")
-        if os.path.exists(carpeta_destino) and not os.listdir(carpeta_destino):
-            os.rmdir(carpeta_destino)
+        print("File " + zipfile + " is not a valid ZIP file.")
+        if os.path.exists(destination_folder) and not os.listdir(destination_folder):
+            os.rmdir(destination_folder)
         raise
     except Exception as e:
-        print("Error al descomprimir " + work_file_zip + ": " + str(e))
-        if os.path.exists(carpeta_destino) and not os.listdir(carpeta_destino):
-            os.rmdir(carpeta_destino)
+        print("Error while decompressing " + zipfile + ": " + str(e))
+        if os.path.exists(destination_folder) and not os.listdir(destination_folder):
+            os.rmdir(destination_folder)
         raise
 
 
@@ -67,22 +68,22 @@ def fna_path(genome):
     return os.path.abspath(genomes_path + genome + '/ncbi_dataset/data/' + genome + '/' + fna_list[0])
     
 # FUNCTION: Remove the .fna file and its directory to avoid storage issues   
-def delete_fna(directorio):
-    for work_file in os.listdir(directorio):
-        ruta = os.path.join(directorio, work_file)
-        if os.path.isfile(ruta) or os.path.islink(ruta):
-            os.unlink(ruta)
-        elif os.path.isdir(ruta):
-            os.rmdir(ruta)
+def delete_fna(directory):
+    for work_file in os.listdir(directory):
+        path = os.path.join(directory, work_file)
+        if os.path.isfile(path) or os.path.islink(path):
+            os.unlink(path)
+        elif os.path.isdir(path):
+            os.rmdir(path)
 
 # FUNCTION: Extract the description from the FASTA header           
 def retrieve_description(fasta_path):
     with open(fasta_path, 'r') as f:
         for line in f:
             if line.startswith('>'):
-                partes = line.strip().split(maxsplit=1) # Split in two parts: header and description
-                if len(partes) > 1:  # Verify if there is a description
-                    return partes[1]  # Return the description part
+                parts = line.strip().split(maxsplit=1) # Split in two parts: header and description
+                if len(parts) > 1:  # Verify if there is a description
+                    return parts[1]  # Return the description part
                 else:
                     return None
     return None
@@ -92,7 +93,6 @@ for element in genomes_list:
     if os.path.exists(genomes_path + element):
         continue
     else:
-        print(source_path + element + '.zip')
         try:
             decompress_zip(source_path + element + '_dataset.zip', genomes_path + element)
         except Exception as e:
@@ -160,14 +160,16 @@ for element in genomes_list:
         # Filter rows where the distance is greater than 0 and less than or equal to the length threshold
         df_rows = []
         for i in range(len(hits_sign_str) - 1):
-            if (0 < hits_sign_str.loc[i + 1, 'distance'] <= rtzm_length and hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i + 1, 'target_name']): # Si la distance entre dos ribozimas esta entre 0 y 2000, y forman parte del mismo contig, las a�ade al nuevo work_file
+            if (0 < hits_sign_str.loc[i + 1, 'distance'] <= rtzm_length and hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i + 1, 'target_name']): 
                 df_rows.append(hits_sign_str.iloc[i])
                 df_rows.append(hits_sign_str.iloc[i + 1])
+        # If the distance is greater than 0 and less than or equal to the length threshold, 
+        # and both rows are included in the same contig, adds them to the list.
     
         # Create a DataFrame with the selected rows
         if df_rows:
             retrozymes = pd.DataFrame(df_rows).drop_duplicates().reset_index(drop=True)
-            retrozymes.to_csv(os.path.join(os.getcwd(), '3er_analisis/2.retrozymes', element + '_retrozymes_neg.txt'), sep=' ', index=False)
+            retrozymes.to_csv(retrozymes_path + element + '_retrozymes_neg.txt', sep=' ', index=False)
             
         # ---- Retrozymes (+ strand) ----
             
@@ -197,7 +199,7 @@ for element in genomes_list:
         # Create a DataFrame with the selected rows
         if df_rows:
             retrozymes = pd.DataFrame(df_rows).drop_duplicates().reset_index(drop=True)
-            retrozymes.to_csv(os.path.join(os.getcwd(), '3er_analisis/2.retrozymes', element + '_retrozymes_pos.txt'), sep=' ', index=False)
+            retrozymes.to_csv(retrozymes_path + element + '_retrozymes_pos.txt', sep=' ', index=False)
     
         # ---- Join files ----
         
@@ -212,7 +214,6 @@ for element in genomes_list:
                 with open(neg_file, 'r') as neg:
                     neg_lines = neg.readlines()[1:]
                     cat.writelines(neg_lines)
-    
                 os.remove(pos_file)
                 os.remove(neg_file)
         elif os.path.exists(neg_file):
@@ -227,7 +228,7 @@ for element in genomes_list:
                 data = [line.strip().split(None, 18) for line in work_file]
         
             header = data[0]
-            data = data[1:]
+            data = data[1:] 
             df = pd.DataFrame(data, columns=header)
                 
             # Convert columns to numeric and clean up the description
@@ -265,13 +266,10 @@ for element in genomes_list:
             subseq_input.to_csv(retrozymes_seqs_path + element + '_input.bed', sep='\t', index=False, header=None)       
         
             if os.path.exists(retrozymes_seqs_path + element + '_input.bed'):
-                          print('existe directorio')
                           input_fa = fna_path(element)
                           input_bed = retrozymes_seqs_path + element + '_input.bed'
                           output_fa = retrozymes_seqs_path + element + '_output.fa'
-                          print(output_fa)
                           command = ['bedtools', 'getfasta', '-fullHeader', '-s', '-fi', input_fa, '-bed', input_bed, '-fo', output_fa]
-                          print(command)
                           
                           command = (
                           'bedtools getfasta -fullHeader -s -fi ' +

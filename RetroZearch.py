@@ -1,216 +1,209 @@
-# -*- coding: utf-8 -*-
-
 import os
 import gzip
 import subprocess
 import pandas as pd
 import zipfile
 
-###########VARIABLES##############
+########### VARIABLES ##############
 
-genomes_path = os.getcwd() + '/3er_analisis/1.genomes/'
-rivero_path = '/media/disk/home/rivero/genomes/spermatophyta_NCBI_cntg_scff/chrom_fulll_Magnoliophyta/'
+# Path where genomes have been downloaded
+source_path = os.getcwd()
 
-longitud_rtzm = 2000
+# Path where the genomes and files will be stored after extraction
+genomes_path = os.getcwd()
 
-##################################
+# Max retrozyme length
+rtzm_length = 2000
+
+# Path to the ribozyme model 
+ribozyme_model = 'your_path' 
+# Path where retrozymes will be stored
+retrozymes_path = 'your_path'
+# Path where retrozymes sequences will be stored
+retrozymes_seqs_path = 'your_path'
+
+####################################
 
 
-#### DESCOMPRESION Y CMSEARCH ####
+#### DECOMPRESSION AND CMSEARCH ####
 
-## Descomprimir archivos
-def descomprimir_zip(archivo_zip, carpeta_destino):
+# FUNCTION: Decompress ZIP files and handle errors
+def decompress_zip(work_file_zip, carpeta_destino):
     try:
-        # Verifica si el archivo ZIP existe
-        if not os.path.exists(archivo_zip):
+        # Verify if the ZIP file exists
+        if not os.path.exists(work_file_zip):
             return None
-        # Verifica si la carpeta de destino existe, si no, la crea
+        # Verify if the destination folder exists, if not, create it
         if not os.path.exists(carpeta_destino):
             os.makedirs(carpeta_destino)
         
-        # Descomprimir el archivo ZIP
-        with zipfile.ZipFile(archivo_zip, 'r') as zip_ref:
+        # Decompress the ZIP file
+        with zipfile.ZipFile(work_file_zip, 'r') as zip_ref:
             zip_ref.extractall(carpeta_destino)
     except zipfile.BadZipFile:
-        print("El archivo " + archivo_zip + " no es un archivo ZIP valido.")
+        print("El work_file " + work_file_zip + " no es un work_file ZIP valido.")
         if os.path.exists(carpeta_destino) and not os.listdir(carpeta_destino):
             os.rmdir(carpeta_destino)
         raise
     except Exception as e:
-        print("Error al descomprimir " + archivo_zip + ": " + str(e))
+        print("Error al descomprimir " + work_file_zip + ": " + str(e))
         if os.path.exists(carpeta_destino) and not os.listdir(carpeta_destino):
             os.rmdir(carpeta_destino)
         raise
 
 
-# Lista de genomas
-root_path = genomes_path  # obtiene la ruta del script
-
-folder_list = os.listdir(rivero_path)
+# Retrieve assembly names and store them in a list
+folder_list = os.listdir(source_path)
 extension = '.zip'
 folder_list_filtered = []
-
 for element in folder_list:
     if element.endswith(extension):
-        folder_list_filtered.append(element[:-12])
-folder_list_filtered.sort()
+        folder_list_filtered.append(element[:-element.index(extension)])  # Remove the .zip extension
+genomes_list = folder_list_filtered.sort() # Sort them from lower to higher
 
-folder_list_2_analysis = os.listdir(os.getcwd() + '/preparacion/1.genomes2.0/')
-
-genomes_list = [x for x in folder_list_filtered if x not in folder_list_2_analysis] # Quita los duplicados del 2o analisis
-
-
-# Obtener ruta del .fna
-def ruta_fna(genoma):
-    fna_list = os.listdir(root_path + genoma + '/ncbi_dataset/data/' + genoma)
-    return os.path.abspath(root_path + genoma + '/ncbi_dataset/data/' + genoma + '/' + fna_list[0])
+# FUNCTION: Retrieve the path of the .fna file for a given genome
+def fna_path(genome):
+    fna_list = os.listdir(genomes_path + genome + '/ncbi_dataset/data/' + genome)
+    return os.path.abspath(genomes_path + genome + '/ncbi_dataset/data/' + genome + '/' + fna_list[0])
     
-# Eliminar el fasta    
-def eliminar_fna(directorio):
-    for archivo in os.listdir(directorio):
-        ruta = os.path.join(directorio, archivo)
-        if os.path.isfile(ruta) or os.path.islink(ruta):  # Archivos o enlaces simbolicos
-            os.unlink(ruta)  # Elimina el archivo
-        elif os.path.isdir(ruta):  # Subdirectorios
-            os.rmdir(ruta)  # Elimina el subdirectorio vacio
+# FUNCTION: Remove the .fna file and its directory to avoid storage issues   
+def delete_fna(directorio):
+    for work_file in os.listdir(directorio):
+        ruta = os.path.join(directorio, work_file)
+        if os.path.isfile(ruta) or os.path.islink(ruta):
+            os.unlink(ruta)
+        elif os.path.isdir(ruta):
+            os.rmdir(ruta)
 
-# Extraer la descripción del fasta (especie)            
-def extraer_descripcion(fasta_path):
+# FUNCTION: Extract the description from the FASTA header           
+def retrieve_description(fasta_path):
     with open(fasta_path, 'r') as f:
         for line in f:
-            if line.startswith('>'):  # Línea de encabezado
-                partes = line.strip().split(maxsplit=1)  # Dividir solo en dos partes
-                if len(partes) > 1:  # Verificar si hay descripción
-                    return partes[1]  # Devolver la descripción completa
+            if line.startswith('>'):
+                partes = line.strip().split(maxsplit=1) # Split in two parts: header and description
+                if len(partes) > 1:  # Verify if there is a description
+                    return partes[1]  # Return the description part
                 else:
-                    return None  # Si no hay descripción
-    return None  # Si el archivo está vacío o no tiene encabezados
+                    return None
+    return None
 
-# Creacion de carpeta y ejecucion del comando
+# Create the directory for genomes and execute the CMSEARCH command for ribozyme search
 for element in genomes_list:
-    
-    if os.path.exists(root_path + element):
+    if os.path.exists(genomes_path + element):
         continue
-    
     else:
-        print(rivero_path + element + '.zip')
+        print(source_path + element + '.zip')
         try:
-            descomprimir_zip(rivero_path + element + '_dataset.zip', root_path + element)
+            decompress_zip(source_path + element + '_dataset.zip', genomes_path + element)
         except Exception as e:
-            print("Error al descomprimir " + element + ": " + str(e))
+            print("Error while decompressing " + element + ": " + str(e))
             continue
     
-        fa_description = extraer_descripcion(ruta_fna(element))
+        fa_description = retrieve_description(fna_path(element))
     
-        # Ejecutar el comando
+        # Execute the CMSEARCH command
         command = (
             'cmsearch '
-            '-o ' + os.path.join(root_path, element, element + '_output.txt ') +
-            '-A ' + os.path.join(root_path, element, element + '_alignments.txt ') +
-            '--tblout ' + os.path.join(root_path, element, element + '_hits.txt ') +
-            'hhr_270322.cm ' + 
-            ruta_fna(element)
+            '-o ' + os.path.join(genomes_path, element, element + '_output.txt ') + # Output file
+            '-A ' + os.path.join(genomes_path, element, element + '_alignments.txt ') + # Alignments file
+            '--tblout ' + os.path.join(genomes_path, element, element + '_hits.txt ') + # Hits file
+            ribozyme_model + ' ' +
+            fna_path(element)
             )
         try:
-        # Ejecutar el comando
             subprocess.run(command, shell=True, check=True)
         except subprocess.CalledProcessError:
             continue
     
-        #### RETROZIMAS ####
+        #### RETROZYMES ####
         
-        with open(os.path.join(root_path, element, element + '_hits.txt'), 'r') as archivo:
-            lines = archivo.readlines()
+        # File processing: remove comments and create a DataFrame
+        with open(os.path.join(genomes_path, element, element + '_hits.txt'), 'r') as work_file:
+            lines = work_file.readlines()
             lines_without_comments = [line for line in lines if not line.strip().startswith('#')]
-        
-        with open(os.path.join(root_path, element, element + '_processed.txt'), 'w') as archivo:
-            archivo.writelines(lines_without_comments)
-        
-        with open(os.path.join(root_path, element, element + '_processed.txt'), 'r') as archivo:
-            data = [line.strip().split(None, 17) for line in archivo]
-        
+        with open(os.path.join(genomes_path, element, element + '_processed.txt'), 'w') as work_file:
+            work_file.writelines(lines_without_comments)
+        with open(os.path.join(genomes_path, element, element + '_processed.txt'), 'r') as work_file:
+            data = [line.strip().split(None, 17) for line in work_file]
         hits_df = pd.DataFrame(data, columns=[
             'target_name', 'accession', 'query_name', 'accesion', 'mdl',
             'mdl_from', 'mdl_to', 'seq_from', 'seq_to', 'strand', 'trunc',
             'pass', 'gc', 'bias', 'score', 'E-value', 'inc', 'description'
         ])
-        
         hits_df['description'] = hits_df['description'].str.replace(' ', '$', regex=False)
         hits_df['seq_from'] = pd.to_numeric(hits_df['seq_from'])
         hits_df['seq_to'] = pd.to_numeric(hits_df['seq_to'])
         hits_df = hits_df.sort_values(by=['target_name', 'seq_from'])
-        hits_df.to_csv(os.path.join(root_path, element, element + '_processed.txt'), sep='\t', index=False)
+        hits_df.to_csv(os.path.join(genomes_path, element, element + '_processed.txt'), sep='\t', index=False)
     
-        # Desplazar 4pb el comienzo de la retrozima
+        # Adjust seq_from and seq_to based on strand to take circRNA into account
         hits_df.loc[hits_df['strand'] == '+', 'seq_from'] += 5
         hits_df.loc[hits_df['strand'] == '-', 'seq_from'] -= 4
     
-        # ---- Retrozimas (-) ----
+        # ---- Retrozymes (- strand) ----
             
-            # Filtrar las retrozimas significativas con la cadena negativa
+            # Retrieve significant retrozymes in the negative strand
         hits_sign = hits_df[hits_df.inc == '!']
         hits_sign_str = hits_sign[hits_sign.strand == '-'].copy()
     
-        # Ordenar por target_name y seq_from para asegurar la correcta comparación
+        # Sort by target_name and seq_from to ensure correct comparison
         hits_sign_str = hits_sign_str.sort_values(by=["target_name", "seq_from"]).reset_index(drop=True)
     
-        # Inicializar la columna 'distancia' con valores predeterminados
-        hits_sign_str['distancia'] = 0
+        # Initialize the 'distance' column with default values
+        hits_sign_str['distance'] = 0
     
-        # Calcular la distancia para filas consecutivas dentro del mismo target_name
+        # Calculate the distance for consecutive rows within the same target_name
         for i in range(1, len(hits_sign_str)):
             if hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i - 1, 'target_name']:
-                hits_sign_str.at[i, 'distancia'] = hits_sign_str.loc[i, 'seq_from'] - hits_sign_str.loc[i - 1, 'seq_from']
+                hits_sign_str.at[i, 'distance'] = hits_sign_str.loc[i, 'seq_from'] - hits_sign_str.loc[i - 1, 'seq_from']
     
-        # Filtrar filas donde la distancia sea mayor que 0 y menor o igual a 2000
-        filas = []
+        # Filter rows where the distance is greater than 0 and less than or equal to the length threshold
+        df_rows = []
         for i in range(len(hits_sign_str) - 1):
-            if (0 < hits_sign_str.loc[i + 1, 'distancia'] <= longitud_rtzm and hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i + 1, 'target_name']): # Si la distancia entre dos ribozimas esta entre 0 y 2000, y forman parte del mismo contig, las añade al nuevo archivo
-                filas.append(hits_sign_str.iloc[i])
-                filas.append(hits_sign_str.iloc[i + 1])
+            if (0 < hits_sign_str.loc[i + 1, 'distance'] <= rtzm_length and hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i + 1, 'target_name']): # Si la distance entre dos ribozimas esta entre 0 y 2000, y forman parte del mismo contig, las aï¿½ade al nuevo work_file
+                df_rows.append(hits_sign_str.iloc[i])
+                df_rows.append(hits_sign_str.iloc[i + 1])
     
-        # Crear un DataFrame con las filas seleccionadas
-        print(os.path.join(os.getcwd(), '/3er_analisis/2.retrozymes/', element + '_retrozymes_neg.txt'))
-        if filas:
-            retrozymes = pd.DataFrame(filas).drop_duplicates().reset_index(drop=True)
+        # Create a DataFrame with the selected rows
+        if df_rows:
+            retrozymes = pd.DataFrame(df_rows).drop_duplicates().reset_index(drop=True)
             retrozymes.to_csv(os.path.join(os.getcwd(), '3er_analisis/2.retrozymes', element + '_retrozymes_neg.txt'), sep=' ', index=False)
             
-        # ---- Retrozimas (+) ----
+        # ---- Retrozymes (+ strand) ----
             
-        # Filtrar las retrozimas con la cadena negativa
+        # Retrieve significant retrozymes in the negative strand
         hits_sign = hits_df[hits_df.inc == '!']
         hits_sign_str = hits_sign[hits_sign.strand == '+'].copy()
     
-        # Ordenar por target_name y seq_from para asegurar la correcta comparación
+        # Sort by target_name and seq_from to ensure correct comparison
         hits_sign_str = hits_sign_str.sort_values(by=["target_name", "seq_from"]).reset_index(drop=True)
     
-        # Inicializar la columna 'distancia' con valores predeterminados
-        hits_sign_str['distancia'] = 0
+        # Initialize the 'distance' column with default values
+        hits_sign_str['distance'] = 0
     
-        # Calcular la distancia para filas consecutivas dentro del mismo target_name
+        # Calculate the distance for consecutive rows within the same target_name
         for i in range(1, len(hits_sign_str)):
             if hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i - 1, 'target_name']:
-                hits_sign_str.at[i, 'distancia'] = hits_sign_str.loc[i, 'seq_from'] - hits_sign_str.loc[i - 1, 'seq_from']
+                hits_sign_str.at[i, 'distance'] = hits_sign_str.loc[i, 'seq_from'] - hits_sign_str.loc[i - 1, 'seq_from']
     
-        # Filtrar filas donde la distancia sea mayor que 0 y menor o igual a 2000
-        filas = []
+        # Filter rows where the distance is greater than 0 and less than or equal to the length threshold
+        df_rows = []
         for i in range(len(hits_sign_str) - 1):
-            if (0 < hits_sign_str.loc[i + 1, 'distancia'] <= longitud_rtzm and
+            if (0 < hits_sign_str.loc[i + 1, 'distance'] <= rtzm_length and
                 hits_sign_str.loc[i, 'target_name'] == hits_sign_str.loc[i + 1, 'target_name']):
-                filas.append(hits_sign_str.iloc[i])
-                filas.append(hits_sign_str.iloc[i + 1])
+                df_rows.append(hits_sign_str.iloc[i])
+                df_rows.append(hits_sign_str.iloc[i + 1])
     
-        # Crear un DataFrame con las filas seleccionadas
-        if filas:
-            retrozymes = pd.DataFrame(filas).drop_duplicates().reset_index(drop=True)
+        # Create a DataFrame with the selected rows
+        if df_rows:
+            retrozymes = pd.DataFrame(df_rows).drop_duplicates().reset_index(drop=True)
             retrozymes.to_csv(os.path.join(os.getcwd(), '3er_analisis/2.retrozymes', element + '_retrozymes_pos.txt'), sep=' ', index=False)
     
-        # ---- Concatenar archivos ----
-        rz_path = os.getcwd() + '/3er_analisis/2.retrozymes/'
+        # ---- Join files ----
         
-        neg_file = os.path.join(rz_path, element + '_retrozymes_neg.txt')
-        pos_file = os.path.join(rz_path, element + '_retrozymes_pos.txt')
-        combined_file = os.path.join(rz_path, element + '_retrozymes.txt')
+        neg_file = os.path.join(retrozymes_path, element + '_retrozymes_neg.txt')
+        pos_file = os.path.join(retrozymes_path, element + '_retrozymes_pos.txt')
+        combined_file = os.path.join(retrozymes_path, element + '_retrozymes.txt')
     
         if os.path.exists(neg_file) and os.path.exists(pos_file):
             with open(combined_file, 'w') as cat:
@@ -229,55 +222,53 @@ for element in genomes_list:
     
     #### SUBSEQ ####
     
-        if os.path.exists(os.getcwd() + '/3er_analisis/2.retrozymes/' + element + '_retrozymes.txt'):
-            with open(os.getcwd() + '/3er_analisis/2.retrozymes/' + element + '_retrozymes.txt', 'r') as archivo:
-                data = [line.strip().split(None, 18) for line in archivo]
+        if os.path.exists(retrozymes_path + element + '_retrozymes.txt'):
+            with open(retrozymes_path + element + '_retrozymes.txt', 'r') as work_file:
+                data = [line.strip().split(None, 18) for line in work_file]
         
-            encabezado = data[0]
+            header = data[0]
             data = data[1:]
-            df = pd.DataFrame(data, columns=encabezado)
+            df = pd.DataFrame(data, columns=header)
                 
-            # Convertir columnas numéricas
+            # Convert columns to numeric and clean up the description
             df['seq_from'] = pd.to_numeric(df['seq_from'], errors='coerce')
             df['seq_to'] = pd.to_numeric(df['seq_to'], errors='coerce')
-            df['distancia'] = pd.to_numeric(df['distancia'], errors='coerce')
+            df['distance'] = pd.to_numeric(df['distance'], errors='coerce')
             df['description'] = df['description'].str.replace('$', ' ', regex=False)
                 
-            # Reemplazar valores anómalos o NaN
-            df['distancia'] = df['distancia'].fillna(-1)
-            df.loc[df['distancia'] > 2000, 'distancia'] = -1
+            # Replace NaN values in 'distance' and distances greater than threshold with -1 
+            df['distance'] = df['distance'].fillna(-1)
+            df.loc[df['distance'] > 2000, 'distance'] = -1
                 
-            # Extraer las secuencias para subseq
+            # Extract coordinates for subseq input
             subseq_input_list = []
             last_seq_from = None
             last_target_name = None
             last_strand = None
                 
-            for i in range(len(df) - 1):  # Esto evita el indice fuera de rango
+            for i in range(len(df) - 1):  # To avoid index out of range
                 target_name = df.loc[i, 'target_name']
                 seq_from = df.loc[i, 'seq_from']
                 seq_from_next = df.loc[i + 1, 'seq_from']
-                distancia = df.loc[i, 'distancia']
-                distancia_next = df.loc[i + 1, 'distancia']
+                distance = df.loc[i, 'distance']
+                distance_next = df.loc[i + 1, 'distance']
                 strand = df.loc[i, 'strand']
                 description = df.loc[i, 'description']        
                 
-                if distancia_next <= 0:
+                if distance_next <= 0: #
                     continue
-                else:
+                else: 
                     subseq_input_list.append([target_name + ' ' + description, int(seq_from) - 1, int(seq_from_next) - 1, '.', '0', strand])
 
-              
-            print(subseq_input_list)      
-             # Guardar el archivo _input.txt
+             # Save subseq input to a DataFrame and write to a BED file
             subseq_input = pd.DataFrame(subseq_input_list, columns=['target_name', 'seq_from_1', 'seq_from_2', 'name', 'orf', 'strand'])
-            subseq_input.to_csv(os.getcwd() + '/3er_analisis/3.1.retrozymes_seqs/' + element + '_input.bed', sep='\t', index=False, header=None)       
+            subseq_input.to_csv(retrozymes_seqs_path + element + '_input.bed', sep='\t', index=False, header=None)       
         
-            if os.path.exists(os.getcwd() + '/3er_analisis/3.1.retrozymes_seqs/' + element + '_input.bed'):
+            if os.path.exists(retrozymes_seqs_path + element + '_input.bed'):
                           print('existe directorio')
-                          input_fa = ruta_fna(element)
-                          input_bed = os.getcwd() + '/3er_analisis/3.1.retrozymes_seqs/' + element + '_input.bed'
-                          output_fa = os.getcwd() + '/3er_analisis/3.1.retrozymes_seqs/' + element + '_output.fa'
+                          input_fa = fna_path(element)
+                          input_bed = retrozymes_seqs_path + element + '_input.bed'
+                          output_fa = retrozymes_seqs_path + element + '_output.fa'
                           print(output_fa)
                           command = ['bedtools', 'getfasta', '-fullHeader', '-s', '-fi', input_fa, '-bed', input_bed, '-fo', output_fa]
                           print(command)
@@ -295,9 +286,9 @@ for element in genomes_list:
                           print("STDERR:", result.stderr.decode())
 
                           
-                          eliminar_fna(os.path.join(os.getcwd(), '3er_analisis/1.genomes', element, 'ncbi_dataset/data', element))
+                          delete_fna(os.path.join(genomes_path, element, 'ncbi_dataset/data', element))
         else:
-            eliminar_fna(os.path.join(os.getcwd(), '3er_analisis/1.genomes', element, 'ncbi_dataset/data', element))
+            delete_fna(os.path.join(genomes_path, element, 'ncbi_dataset/data', element))
             continue
             
     

@@ -221,7 +221,7 @@ for element in genomes_list:
         elif os.path.exists(pos_file):
             os.rename(pos_file, combined_file)
     
-    #### SUBSEQ ####
+    #### BEDTOOLS ####
     
         if os.path.exists(retrozymes_path + element + '_retrozymes.txt'):
             with open(retrozymes_path + element + '_retrozymes.txt', 'r') as work_file:
@@ -241,8 +241,8 @@ for element in genomes_list:
             df['distance'] = df['distance'].fillna(-1)
             df.loc[df['distance'] > 2000, 'distance'] = -1
                 
-            # Extract coordinates for subseq input
-            subseq_input_list = []
+            # Extract coordinates for bedtools input
+            bedtools_input_list = []
             last_seq_from = None
             last_target_name = None
             last_strand = None
@@ -259,11 +259,11 @@ for element in genomes_list:
                 if distance_next <= 0: #
                     continue
                 else: 
-                    subseq_input_list.append([target_name + ' ' + description, int(seq_from) - 1, int(seq_from_next) - 1, '.', '0', strand])
+                    bedtools_input_list.append([target_name + ' ' + description, int(seq_from) - 1, int(seq_from_next) - 1, '.', '0', strand])
 
-             # Save subseq input to a DataFrame and write to a BED file
-            subseq_input = pd.DataFrame(subseq_input_list, columns=['target_name', 'seq_from_1', 'seq_from_2', 'name', 'orf', 'strand'])
-            subseq_input.to_csv(retrozymes_seqs_path + element + '_input.bed', sep='\t', index=False, header=None)       
+             # Save bedtools input to a DataFrame and write to a BED file
+            bedtools_input = pd.DataFrame(bedtools_input_list, columns=['target_name', 'seq_from_1', 'seq_from_2', 'name', 'orf', 'strand'])
+            bedtools_input.to_csv(retrozymes_seqs_path + element + '_input.bed', sep='\t', index=False, header=None)       
         
             if os.path.exists(retrozymes_seqs_path + element + '_input.bed'):
                           input_fa = fna_path(element)
